@@ -20,11 +20,12 @@ probe "curl -fs '$W/user/lab/wordcount-out?op=LISTSTATUS'" | grep -q '_SUCCESS'
 probe 'curl -fs http://resourcemanager:8088/ws/v1/cluster/apps' | grep -q '"finalStatus":"SUCCEEDED"'
 
 echo "- a file is put into HDFS with two curl requests, listed and read back"
-probe "printf 'one fish two fish red fish blue fish\n' > /tmp/f.txt
+probe "set -eo pipefail
+  printf 'one fish two fish red fish blue fish\n' > /tmp/f.txt
   curl -fs -X PUT '$W/user/lab/mine?op=MKDIRS&user.name=lab' | grep -q true
   curl -fsL -X PUT -T /tmp/f.txt '$W/user/lab/mine/fish.txt?op=CREATE&user.name=lab&overwrite=true'
   curl -fs '$W/user/lab/mine?op=LISTSTATUS' | grep -q '\"pathSuffix\":\"fish.txt\"'
-  curl -fs '$W/user/lab/mine/fish.txt?op=GETFILESTATUS' | grep -q '\"length\":36'
+  curl -fs '$W/user/lab/mine/fish.txt?op=GETFILESTATUS' | grep -q '\"length\":37'
   curl -fsL '$W/user/lab/mine/fish.txt?op=OPEN' | grep -q 'one fish two fish red fish blue fish'"
 
 echo "- the student runs a word count of their own file, and reads the answer"
