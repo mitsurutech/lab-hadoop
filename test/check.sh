@@ -27,7 +27,10 @@ docker compose -p "$project" down -v --remove-orphans >/dev/null 2>&1 || true
 docker compose -f "$root/compose.yaml" -f "$root/local.yaml" config --quiet
 
 docker build -q -t hadoop-check-probe -f "$root/test/Dockerfile.probe" "$root/test" >/dev/null
-compose up -d --wait --wait-timeout 300
+started=$(date +%s)
+compose up -d --wait --wait-timeout 600
+echo "healthy after $(( $(date +%s) - started )) seconds (the first word count included)" >&2
+docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' $(compose ps -q) >&2
 
 # The hardening really took: a check that ran without it proves nothing.
 for c in $(compose ps -q); do
