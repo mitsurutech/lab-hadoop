@@ -16,7 +16,7 @@ It is one `docker-compose` file, `compose.yaml`, and it runs the same on your ow
 | `nodemanager` | `apache/hadoop:3.4.1` | 512 MB | runs a job's tasks |
 | `client` | `apache/hadoop:3.4.1` | 320 MB | runs the word count once the cluster is up, then stays so a second can be run with `docker exec` |
 
-That is 1,856 MB of limits, under the platform's 2 GB for a copy. The five services use one image, so it is downloaded once. __MEASURED__
+That is 1,856 MB of limits, under the platform's 2 GB for a copy. The five services use one image, so it is downloaded once. Idle, a copy uses roughly 820 MB, and on an ordinary Intel or AMD machine it is healthy in about a minute, the first word count included. The first start downloads the image (about 1.2 GB compressed).
 
 The image is the Apache Hadoop project's own, run unmodified and pinned to a version (never `latest`), so the lab does not change under a class between one lesson and the next. Nothing is built here and nothing from this repository is distributed in it. The configuration is written by each service's entrypoint from the compose file, so there is nothing else to download. The heaps are tuned right down and the job runs as one small "uber" job, which is why a copy is small, and why it is a teaching cluster and not a place to process real data.
 
