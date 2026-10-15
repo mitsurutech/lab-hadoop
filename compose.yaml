@@ -1,0 +1,213 @@
+# Hadoop, HDFS and MapReduce: a small cluster of its own to put files into, list, read back and
+# count the words of, the way big data is stored and processed.
+#
+# Your copy is the only thing you may use, and it is the only thing you can reach.
+# This lab has no way out to the internet.
+# Never point a tool at a site you do not own, in a lab or anywhere else.
+#
+# Press Open on the first link for the NameNode, the page that lists every file in HDFS (Utilities,
+# then Browse the file system), and on the second for the ResourceManager, which lists the jobs.
+# Your terminal has no hadoop command, so it talks to the same cluster over HTTP with curl:
+# WebHDFS is at http://namenode:9870/webhdfs/v1/ and the job list at
+# http://resourcemanager:8088/ws/v1/cluster/apps. The cluster ran a word count for you when it
+# started, on the file /user/lab/input/sentence.txt, and left the answer in /user/lab/wordcount-out.
+# To run one yourself, docker exec client hadoop jar
+# /opt/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.1.jar wordcount IN OUT.
+#
+# Hand in the file you put into HDFS (its path), the word count MapReduce made from it (the lines
+# of its part-r-00000 file) and a sentence on what the NameNode and the DataNode each do.
+#
+# Nothing here is secured: any user name is accepted and permissions are off, which is right
+# for a copy of your own and wrong for a real cluster. Nothing is saved when the lab stops: HDFS
+# lives in each container's own scratch space and starts empty again, the word count running
+# afresh. A real cluster holds three copies of every block on three machines, and this one has a
+# single DataNode, so the replication is set to one.
+
+x-hadoop-config: &config |
+  cd /opt/hadoop/etc/hadoop
+  cat > core-site.xml <<'CONF'
+  <configuration>
+    <property><name>fs.defaultFS</name><value>hdfs://namenode:8020</value></property>
+    <property><name>hadoop.tmp.dir</name><value>/tmp/hadoop</value></property>
+    <property><name>hadoop.http.staticuser.user</name><value>lab</value></property>
+  </configuration>
+  CONF
+  cat > hdfs-site.xml <<'CONF'
+  <configuration>
+    <property><name>dfs.replication</name><value>1</value></property>
+    <property><name>dfs.permissions.enabled</name><value>false</value></property>
+    <property><name>dfs.webhdfs.enabled</name><value>true</value></property>
+    <property><name>dfs.namenode.name.dir</name><value>/tmp/nn</value></property>
+    <property><name>dfs.datanode.data.dir</name><value>/tmp/dn</value></property>
+    <property><name>dfs.namenode.safemode.min.datanodes</name><value>1</value></property>
+    <property><name>dfs.namenode.safemode.extension</name><value>0</value></property>
+    <property><name>dfs.datanode.max.transfer.threads</name><value>64</value></property>
+  </configuration>
+  CONF
+  cat > yarn-site.xml <<'CONF'
+  <configuration>
+    <property><name>yarn.resourcemanager.hostname</name><value>resourcemanager</value></property>
+    <property><name>yarn.nodemanager.aux-services</name><value>mapreduce_shuffle</value></property>
+    <property><name>yarn.nodemanager.resource.memory-mb</name><value>768</value></property>
+    <property><name>yarn.nodemanager.resource.cpu-vcores</name><value>2</value></property>
+    <property><name>yarn.scheduler.minimum-allocation-mb</name><value>256</value></property>
+    <property><name>yarn.scheduler.maximum-allocation-mb</name><value>768</value></property>
+    <property><name>yarn.nodemanager.pmem-check-enabled</name><value>false</value></property>
+    <property><name>yarn.nodemanager.vmem-check-enabled</name><value>false</value></property>
+    <property><name>yarn.nodemanager.local-dirs</name><value>/tmp/nm-local</value></property>
+    <property><name>yarn.nodemanager.log-dirs</name><value>/tmp/nm-logs</value></property>
+    <property><name>yarn.nodemanager.env-whitelist</name><value>JAVA_HOME,HADOOP_COMMON_HOME,HADOOP_HDFS_HOME,HADOOP_CONF_DIR,HADOOP_YARN_HOME,HADOOP_MAPRED_HOME</value></property>
+  </configuration>
+  CONF
+  cat > mapred-site.xml <<'CONF'
+  <configuration>
+    <property><name>mapreduce.framework.name</name><value>yarn</value></property>
+    <property><name>mapreduce.application.classpath</name><value>/opt/hadoop/share/hadoop/mapreduce/*:/opt/hadoop/share/hadoop/mapreduce/lib/*</value></property>
+    <property><name>yarn.app.mapreduce.am.env</name><value>HADOOP_MAPRED_HOME=/opt/hadoop</value></property>
+    <property><name>mapreduce.map.env</name><value>HADOOP_MAPRED_HOME=/opt/hadoop</value></property>
+    <property><name>mapreduce.reduce.env</name><value>HADOOP_MAPRED_HOME=/opt/hadoop</value></property>
+    <property><name>yarn.app.mapreduce.am.resource.mb</name><value>256</value></property>
+    <property><name>yarn.app.mapreduce.am.command-opts</name><value>-Xmx160m -XX:+UseSerialGC -XX:MaxMetaspaceSize=64m -XX:ReservedCodeCacheSize=32m</value></property>
+    <property><name>mapreduce.map.memory.mb</name><value>256</value></property>
+    <property><name>mapreduce.reduce.memory.mb</name><value>256</value></property>
+    <property><name>mapreduce.map.java.opts</name><value>-Xmx128m -XX:+UseSerialGC</value></property>
+    <property><name>mapreduce.reduce.java.opts</name><value>-Xmx128m -XX:+UseSerialGC</value></property>
+    <property><name>mapreduce.job.ubertask.enable</name><value>true</value></property>
+    <property><name>mapreduce.task.io.sort.mb</name><value>16</value></property>
+  </configuration>
+  CONF
+  exec "$$@"
+
+services:
+  namenode:
+    image: apache/hadoop:3.4.1
+    user: "1000"
+    entrypoint: ["sh", "-c", *config, "sh"]
+    command: ["sh", "-c", "[ -d /tmp/nn/current ] || hdfs namenode -format -force -nonInteractive; exec hdfs namenode"]
+    environment:
+      HADOOP_HEAPSIZE_MAX: 160m
+      HADOOP_OPTS: -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+      HADOOP_ROOT_LOGGER: INFO,console
+      MALLOC_ARENA_MAX: "2"
+    expose: ["8020", "9870"]
+    # Asks the NameNode's own web address for the root of HDFS, which it answers once it is up.
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9870/webhdfs/v1/?op=GETFILESTATUS"]
+      interval: 3s
+      timeout: 5s
+      retries: 80
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    labels:
+      lab.title: HDFS NameNode, the page that lists every file
+      lab.open: "9870"
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    user: "1000"
+    entrypoint: ["sh", "-c", *config, "sh"]
+    command: ["hdfs", "datanode"]
+    environment:
+      HADOOP_HEAPSIZE_MAX: 128m
+      HADOOP_OPTS: -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+      HADOOP_ROOT_LOGGER: INFO,console
+      MALLOC_ARENA_MAX: "2"
+    expose: ["9864"]
+    depends_on:
+      namenode:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:9864/"]
+      interval: 3s
+      timeout: 5s
+      retries: 80
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  resourcemanager:
+    image: apache/hadoop:3.4.1
+    user: "1000"
+    entrypoint: ["sh", "-c", *config, "sh"]
+    command: ["yarn", "resourcemanager"]
+    environment:
+      HADOOP_HEAPSIZE_MAX: 160m
+      HADOOP_OPTS: -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+      HADOOP_ROOT_LOGGER: INFO,console
+      MALLOC_ARENA_MAX: "2"
+    expose: ["8088", "8032", "8030", "8031"]
+    # Both YARN daemons answer on their own host name and not on the loopback.
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://resourcemanager:8088/ws/v1/cluster/info"]
+      interval: 3s
+      timeout: 5s
+      retries: 80
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+    labels:
+      lab.title: YARN ResourceManager, the page that lists the jobs
+      lab.open: "8088"
+
+  nodemanager:
+    image: apache/hadoop:3.4.1
+    user: "1000"
+    entrypoint: ["sh", "-c", *config, "sh"]
+    command: ["yarn", "nodemanager"]
+    environment:
+      HADOOP_HEAPSIZE_MAX: 128m
+      HADOOP_OPTS: -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+      HADOOP_ROOT_LOGGER: INFO,console
+      MALLOC_ARENA_MAX: "2"
+    expose: ["8042"]
+    depends_on:
+      resourcemanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://nodemanager:8042/ws/v1/node/info"]
+      interval: 3s
+      timeout: 5s
+      retries: 80
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Runs the word count once the rest is up, then stays, so docker exec client has the hadoop
+  # command to run another. It is healthy only when the first job has finished.
+  client:
+    image: apache/hadoop:3.4.1
+    user: "1000"
+    entrypoint: ["sh", "-c", *config, "sh"]
+    command:
+      - sh
+      - -c
+      - |
+        until hdfs dfs -mkdir -p /user/lab/input 2>/dev/null; do sleep 2; done
+        printf 'the quick brown fox jumps over the lazy dog\nthe dog barks and the fox runs away\n' | hdfs dfs -put -f - /user/lab/input/sentence.txt
+        hdfs dfs -rm -r -f /user/lab/wordcount-out
+        hadoop jar /opt/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-3.4.1.jar wordcount /user/lab/input /user/lab/wordcount-out && touch /tmp/counted
+        exec sleep infinity
+    environment:
+      HADOOP_USER_NAME: lab
+      HADOOP_HEAPSIZE_MAX: 128m
+      HADOOP_OPTS: -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:ReservedCodeCacheSize=32m
+      MALLOC_ARENA_MAX: "2"
+    depends_on:
+      datanode:
+        condition: service_healthy
+      nodemanager:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "test", "-f", "/tmp/counted"]
+      interval: 3s
+      timeout: 3s
+      retries: 100
+    deploy:
+      resources:
+        limits:
+          memory: 320M
