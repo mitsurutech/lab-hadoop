@@ -1,5 +1,7 @@
 # Hadoop HDFS and MapReduce lab with Docker Compose: put a file in HDFS and count its words in a private copy
 
+[English](README.md) | [Français](README.fr.md) | [日本語](README.ja.md) | [Español](README.es.md)
+
 [![check](https://github.com/mitsurutech/lab-hadoop/actions/workflows/check.yml/badge.svg)](https://github.com/mitsurutech/lab-hadoop/actions/workflows/check.yml)
 
 A ready-made **Hadoop lab** for classrooms, from the [MitsuruTech Learning Platform](https://mitsurutech.co.uk/learning), where schools and colleges give every student their own databases, containers and terminal in the browser. Each student gets a small private **Hadoop cluster**: **HDFS**, the distributed file system, with a NameNode and a DataNode, and **YARN** with a ResourceManager and a NodeManager to run **MapReduce** jobs. They **put a file into HDFS, list it, read it back and run the bundled word count** on it, over plain HTTP with `curl` and in the NameNode's own web page. It suits a first look at big data storage and processing in a data, cloud or distributed systems unit, with nothing installed and no risk to anybody else's machine.
@@ -87,7 +89,11 @@ test/check.sh
 
 [Apache Hadoop](https://hadoop.apache.org) is licensed under the Apache License 2.0. It is run unmodified from its own public image, `apache/hadoop:3.4.1`, and is not distributed here.
 
-The compose file, the tests and this documentation are MIT licensed, see [LICENSE](LICENSE): copy it, change it, teach with it. The application inside keeps the licence of its own project.
+The application inside keeps the licence of its own project.
+
+## Licence
+
+This work is licensed under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). You may share it and adapt it for learning and teaching, if you credit Mitsuru Technologies Ltd, do not use it commercially, and share anything you make from it under the same licence. The full text is in the `LICENSE` file.
 
 ## About
 
